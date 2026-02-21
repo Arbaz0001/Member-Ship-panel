@@ -34,6 +34,9 @@ export default function AdminPayments() {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("role");
+    console.log("AdminPayments loaded - Token:", !!token ? token.slice(0, 20) + "..." : null, "Role:", role);
     load();
   }, [status, page]);
 

@@ -25,6 +25,9 @@ const { createUploader } = require("../utils/upload");
 const qrUpload = createUploader(path.join(__dirname, "..", "uploads", "qr"));
 
 router.post("/login", adminLogin);
+router.get("/debug", auth, requireAdmin, (req, res) => {
+  res.json({ user: req.user, role: req.user?.role });
+});
 router.get("/dashboard", auth, requireAdmin, adminSummary);
 
 router.get("/members", auth, requireAdmin, listAdminMembers);

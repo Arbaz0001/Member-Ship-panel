@@ -20,6 +20,7 @@ const auth = (req, res, next) => {
 
 const requireAdmin = (req, res, next) => {
   if (req.user?.role !== "admin") {
+    console.error("Admin check failed:", { userRole: req.user?.role, user: req.user });
     return res.status(403).json({ msg: "Admin only" });
   }
   next();

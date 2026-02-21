@@ -21,19 +21,25 @@ export const AuthProvider = ({ children }) => {
 
   const loginUser = async (email, password) => {
     const res = await api.post("/auth/login", { email, password });
+    // Clear any previous tokens
+    localStorage.clear();
     localStorage.setItem("token", res.data.token);
     localStorage.setItem("role", res.data.role);
     setToken(res.data.token);
     setRole(res.data.role);
+    console.log("✅ User Login Success - Role:", res.data.role);
     return res.data.role;
   };
 
   const loginAdmin = async (email, password) => {
     const res = await api.post("/admin/login", { email, password });
+    // Clear old tokens completely before setting admin token
+    localStorage.clear();
     localStorage.setItem("token", res.data.token);
     localStorage.setItem("role", res.data.role);
     setToken(res.data.token);
     setRole(res.data.role);
+    console.log("✅ Admin Login Success - Role:", res.data.role);
     return res.data.role;
   };
 
