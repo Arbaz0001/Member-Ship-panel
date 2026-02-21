@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import React, { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -16,6 +16,13 @@ const isTokenExpired = (token) => {
 
 export default function ProtectedRoute({ children, role }) {
   const auth = useAuth();
+  const isExpired = Boolean(auth?.token) && isTokenExpired(auth.token);
+
+  useEffect(() => {
+    if (!auth?.loading && isExpired) {
+      auth?.logout?.();
+    }
+  }, [auth, isExpired]);
 
   if (auth?.loading) {
     return (
@@ -25,8 +32,7 @@ export default function ProtectedRoute({ children, role }) {
     );
   }
 
-  if (!auth?.token || isTokenExpired(auth.token)) {
-    auth?.logout?.();
+  if (!auth?.token || isExpired) {
     return <Navigate to={role === "admin" ? "/admin/login" : "/login"} replace />;
   }
 
