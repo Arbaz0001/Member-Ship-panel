@@ -63,21 +63,37 @@ export const registerMember = async (payload) => {
     const email = getFormValue(payload, "email");
     const password = getFormValue(payload, "password");
     const mobile = getFormValue(payload, "mobile");
-    const loginPassword = password || mobile;
+    const loginCandidates = [password, mobile].filter(Boolean);
 
     console.warn("[frontend.register] Fallback registration did not return token. Attempting auto-login.");
 
-    const loginResponse = await api.post("/auth/login", {
-      email,
-      password: loginPassword,
-    });
-    console.log("API Response:", loginResponse.data);
+    let lastLoginError = null;
 
-    return {
-      ...fallbackResponse.data,
-      ...loginResponse.data,
-      user: loginResponse.data?.user || null,
-    };
+    for (const candidate of loginCandidates) {
+      try {
+        console.log("[frontend.register] Auto-login retry", {
+          email,
+          using: candidate === password ? "submitted-password" : "mobile-fallback",
+        });
+
+        const loginResponse = await api.post("/auth/login", {
+          email,
+          password: candidate,
+        });
+        console.log("API Response:", loginResponse.data);
+
+        return {
+          ...fallbackResponse.data,
+          ...loginResponse.data,
+          user: loginResponse.data?.user || null,
+        };
+      } catch (loginError) {
+        lastLoginError = loginError;
+        console.error("API Error:", loginError.response?.data || loginError.message);
+      }
+    }
+
+    throw lastLoginError || error;
   }
 };
 
