@@ -14,10 +14,11 @@ export default function Login() {
   const login = async () => {
     try {
       setError("");
-      const role = await auth.loginUser(email, password);
+      await auth.loginUser(email, password);
       toast.success("Signed in successfully.");
-      nav(role === "admin" ? "/admin/dashboard" : "/member/dashboard");
+      nav("/dashboard");
     } catch (err) {
+      console.error("Login request failed:", err);
       setError(err?.response?.data?.msg || "The provided credentials are invalid.");
     }
   };

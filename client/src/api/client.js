@@ -24,6 +24,7 @@ api.interceptors.response.use(
     if (status === 401) {
       const path = globalThis.location?.pathname || "/";
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
       localStorage.removeItem("role");
       globalThis.location.href = path.startsWith("/admin") ? "/admin/login" : "/login";
     }
