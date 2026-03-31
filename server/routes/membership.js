@@ -2,8 +2,8 @@
 const router = require("express").Router();
 const path = require("node:path");
 const { auth, requireAdmin, requireMember } = require("../middleware/auth");
+const { registerUser } = require("../controllers/authController");
 const {
-	applyMembership,
 	listMembers,
 	listPublicMembers,
 	updateMember,
@@ -21,7 +21,7 @@ const profileUpload = createUploader(
 
 router.get("/stats", stats);
 router.get("/public", listPublicMembers);
-router.post("/apply", profileUpload.single("profileImage"), applyMembership);
+router.post("/apply", profileUpload.single("profileImage"), registerUser);
 router.get("/me", auth, requireMember, getMyMemberProfile);
 
 router.get("/", auth, requireAdmin, listMembers);

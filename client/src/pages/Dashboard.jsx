@@ -5,6 +5,7 @@ import Spinner from "../components/Spinner";
 import { useToast } from "../context/ToastContext";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { API_ORIGIN } from "../config/env";
 
 const cards = [
   { key: "imdad", label: "Imdad" },
@@ -13,7 +14,7 @@ const cards = [
   { key: "blindDonation", label: "Blind Donation" },
 ];
 
-const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const baseUrl = API_ORIGIN;
 
 export default function Dashboard() {
   const toast = useToast();
@@ -43,7 +44,7 @@ export default function Dashboard() {
         api.get("/settings"),
       ]);
 
-      setMember(memberRes.data);
+      setMember(memberRes.data?.member || null);
       setSettings(
         settingRes.data || {
           paymentQrImage: "",
@@ -55,7 +56,7 @@ export default function Dashboard() {
         }
       );
     } catch (err) {
-      toast.error(err?.response?.data?.msg || "Unable to load dashboard data.");
+      toast.error(err?.response?.data?.message || err?.response?.data?.msg || "Unable to load dashboard data.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +84,7 @@ export default function Dashboard() {
       setAmount("");
       setScreenshot(null);
     } catch (err) {
-      toast.error(err?.response?.data?.msg || "We were unable to submit your payment. Please try again.");
+      toast.error(err?.response?.data?.message || err?.response?.data?.msg || "We were unable to submit your payment. Please try again.");
     } finally {
       setSubmitting(false);
     }

@@ -128,8 +128,13 @@ export const AuthProvider = ({ children }) => {
     clearSession();
   };
 
+  const setAuthSession = (authPayload) => {
+    const nextRole = authPayload?.user?.role || authPayload?.role || null;
+    persistSession(authPayload.token, nextRole, authPayload.user || null);
+  };
+
   const value = useMemo(
-    () => ({ token, role, user, loading, loginUser, loginAdmin, logout }),
+    () => ({ token, role, user, loading, loginUser, loginAdmin, logout, setAuthSession }),
     [token, role, user, loading]
   );
 

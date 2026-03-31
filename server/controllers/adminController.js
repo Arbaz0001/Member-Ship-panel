@@ -39,11 +39,14 @@ const ensureMembershipPriceIndexes = async (force = false) => {
 const adminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    console.log("[admin.login] Login attempt", {
+      email: email?.toLowerCase() || "",
+    });
     if (
       email !== process.env.ADMIN_EMAIL ||
       password !== process.env.ADMIN_PASSWORD
     ) {
-      return res.status(401).json({ msg: "Invalid admin credentials" });
+      return res.status(401).json({ success: false, message: "Invalid admin credentials" });
     }
 
     const token = jwt.sign(
@@ -52,7 +55,20 @@ const adminLogin = async (req, res, next) => {
       { expiresIn: "7d" }
     );
 
-    res.json({ token, role: "admin" });
+    console.log("[admin.login] JWT generated", {
+      email: email?.toLowerCase() || "",
+      tokenIssued: Boolean(token),
+    });
+
+    res.json({
+      success: true,
+      token,
+      role: "admin",
+      user: {
+        email,
+        role: "admin",
+      },
+    });
   } catch (err) {
     next(err);
   }

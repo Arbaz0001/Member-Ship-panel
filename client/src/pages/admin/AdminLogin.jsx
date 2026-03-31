@@ -18,7 +18,7 @@ export default function AdminLogin() {
       toast.success("Administrator signed in successfully.");
       nav("/admin/dashboard");
     } catch (err) {
-      setError(err?.response?.data?.msg || "The provided administrator credentials are invalid.");
+      setError(err?.response?.data?.message || err?.response?.data?.msg || "The provided administrator credentials are invalid.");
     }
   };
 

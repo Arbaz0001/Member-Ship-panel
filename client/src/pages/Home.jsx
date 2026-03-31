@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { registerMember } from "../api/auth";
 import Spinner from "../components/Spinner";
 import { useToast } from "../context/ToastContext";
 import logo from "../assets/ssp.jpeg";
+import { API_ORIGIN } from "../config/env";
 
-const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const baseUrl = API_ORIGIN;
 
 const renderMembersContent = (membersLoading, membersError, publicMembers) => {
   if (membersLoading) {
@@ -63,6 +65,7 @@ export default function Home() {
     fatherName: "",
     mobile: "",
     email: "",
+    password: "",
     address: "",
     occupation: "",
     annualIncome: "",
@@ -125,7 +128,7 @@ export default function Home() {
         });
         setPublicMembers(res.data?.items || []);
       } catch (err) {
-        setMembersError(err?.response?.data?.msg || "Unable to load members.");
+        setMembersError(err?.response?.data?.message || err?.response?.data?.msg || "Unable to load members.");
         setPublicMembers([]);
       } finally {
         setMembersLoading(false);
@@ -150,15 +153,12 @@ export default function Home() {
       Object.entries(payload).forEach(([key, value]) => data.append(key, value));
       if (profileImage) data.append("profileImage", profileImage);
 
-      await api.post("/members/apply", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      await auth.loginUser(form.email, form.mobile);
+      const response = await registerMember(data);
+      auth.setAuthSession(response);
       toast.success("Your membership application has been submitted successfully, and you are now signed in.");
-      nav("/member/dashboard");
+      nav("/dashboard");
     } catch (err) {
-      toast.error(err?.response?.data?.msg || err?.response?.data?.message || "We were unable to submit the membership form. Please review the details and try again.");
+      toast.error(err?.response?.data?.message || err?.response?.data?.msg || "We were unable to submit the membership form. Please review the details and try again.");
     } finally {
       setLoading(false);
     }
@@ -238,6 +238,7 @@ export default function Home() {
             <input className="border border-slate-300 p-2 rounded" placeholder="Father Name" value={form.fatherName} onChange={(e) => updateField("fatherName", e.target.value)} required />
             <input className="border border-slate-300 p-2 rounded" placeholder="Mobile" value={form.mobile} onChange={(e) => updateField("mobile", e.target.value)} required />
             <input type="email" className="border border-slate-300 p-2 rounded" placeholder="Email" value={form.email} onChange={(e) => updateField("email", e.target.value)} required />
+            <input type="password" className="border border-slate-300 p-2 rounded" placeholder="Password" value={form.password} onChange={(e) => updateField("password", e.target.value)} required />
             <input className="border border-slate-300 p-2 rounded" placeholder="Occupation" value={form.occupation} onChange={(e) => updateField("occupation", e.target.value)} required />
             <input type="number" className="border border-slate-300 p-2 rounded" placeholder="Annual Income" value={form.annualIncome} onChange={(e) => updateField("annualIncome", e.target.value)} required />
             <select

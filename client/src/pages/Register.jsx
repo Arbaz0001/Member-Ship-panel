@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { registerMember } from "../api/auth";
+import { useAuth } from "../context/AuthContext";
 import logo from "../assets/ssp.jpeg";
+import { API_ORIGIN } from "../config/env";
 
 export default function Register() {
+  const nav = useNavigate();
+  const auth = useAuth();
   const [form, setForm] = useState({
     fullName: "",
     fatherName: "",
     mobile: "",
     email: "",
+    password: "",
     address: "",
     occupation: "",
     annualIncome: "",
@@ -78,15 +84,15 @@ export default function Register() {
 
       Object.entries(payload).forEach(([key, value]) => data.append(key, value));
       if (profileImage) data.append("profileImage", profileImage);
-      const res = await api.post("/members/apply", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setMessage(res.data.message || "Your membership application has been submitted successfully.");
+      const res = await registerMember(data);
+      auth.setAuthSession(res);
+      setMessage(res.message || "Your membership application has been submitted successfully.");
       setForm({
         fullName: "",
         fatherName: "",
         mobile: "",
         email: "",
+        password: "",
         address: "",
         occupation: "",
         annualIncome: "",
@@ -94,6 +100,7 @@ export default function Register() {
         membershipPriceId: settings.membershipOptions?.[0]?._id || "",
       });
       setProfileImage(null);
+      nav("/dashboard");
     } catch (err) {
       setError(err?.response?.data?.message || "We were unable to submit your application. Please review the form and try again.");
     }
@@ -141,6 +148,14 @@ export default function Register() {
                 placeholder="Email"
                 value={form.email}
                 onChange={(e) => updateField("email", e.target.value)}
+                required
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="Password"
+                type="password"
+                value={form.password}
+                onChange={(e) => updateField("password", e.target.value)}
                 required
               />
               <input
@@ -224,7 +239,7 @@ export default function Register() {
             <h3 className="font-semibold mb-3">Payment QR</h3>
             {settings.paymentQrImage ? (
               <img
-                src={`${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${
+                src={`${API_ORIGIN}${
                   settings.paymentQrImage
                 }`}
                 alt="Payment QR"
