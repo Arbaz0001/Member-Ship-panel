@@ -38,7 +38,6 @@ export const AuthProvider = ({ children }) => {
 
   const loginUser = async (email, password) => {
     const res = await loginMember({ email, password });
-    res.data = res;
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.setItem("token", res.token);
@@ -51,7 +50,6 @@ export const AuthProvider = ({ children }) => {
 
   const loginAdmin = async (email, password) => {
     const res = await loginAdminRequest({ email, password });
-    res.data = res;
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.setItem("token", res.token);
