@@ -21,6 +21,11 @@ const logFormData = (payload) => {
   console.log("File:", payload.get("profileImage") || null);
 };
 
+const getFormValue = (payload, key) => {
+  if (!(payload instanceof FormData)) return "";
+  return payload.get(key) || "";
+};
+
 export const registerMember = async (payload) => {
   console.log("[frontend.register] Submitting registration", {
     email: payload instanceof FormData ? payload.get("email") : payload?.email || "",
@@ -35,7 +40,44 @@ export const registerMember = async (payload) => {
     return response.data;
   } catch (error) {
     console.error("API Error:", error.response?.data || error.message);
-    throw error;
+
+    const isRegisterRouteMissing =
+      error?.response?.status === 404 &&
+      String(error?.response?.data?.message || "").includes("/api/auth/register");
+
+    if (!isRegisterRouteMissing) {
+      throw error;
+    }
+
+    console.warn("[frontend.register] /auth/register not found on live server. Falling back to /members/apply");
+
+    const fallbackResponse = await api.post("/members/apply", payload, {
+      headers: payload instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+    });
+    console.log("API Response:", fallbackResponse.data);
+
+    if (fallbackResponse.data?.token) {
+      return fallbackResponse.data;
+    }
+
+    const email = getFormValue(payload, "email");
+    const password = getFormValue(payload, "password");
+    const mobile = getFormValue(payload, "mobile");
+    const loginPassword = password || mobile;
+
+    console.warn("[frontend.register] Fallback registration did not return token. Attempting auto-login.");
+
+    const loginResponse = await api.post("/auth/login", {
+      email,
+      password: loginPassword,
+    });
+    console.log("API Response:", loginResponse.data);
+
+    return {
+      ...fallbackResponse.data,
+      ...loginResponse.data,
+      user: loginResponse.data?.user || null,
+    };
   }
 };
 
