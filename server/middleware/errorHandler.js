@@ -4,6 +4,14 @@ const notFound = (req, res, next) => {
 };
 
 const errorHandler = (err, req, res, next) => {
+  console.error("[error]", {
+    method: req.method,
+    url: req.originalUrl,
+    statusCode: err.statusCode || res.statusCode || 500,
+    message: err.message,
+    stack: err.stack,
+  });
+
   let statusCode = err.statusCode || (res.statusCode && res.statusCode !== 200 ? res.statusCode : 500);
   let message = err.message || "Server error";
 
@@ -37,13 +45,14 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === "MulterError") {
     statusCode = 400;
-    message = err.message;
+    message = err.code === "LIMIT_FILE_SIZE"
+      ? "File too large. Maximum allowed size is 10MB"
+      : err.message;
   }
 
   res.status(statusCode).json({
     success: false,
     message,
-    ...(process.env.NODE_ENV === "development" ? { stack: err.stack } : {}),
   });
 };
 

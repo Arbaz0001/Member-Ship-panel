@@ -100,7 +100,8 @@ export const AuthProvider = ({ children }) => {
   const loginUser = async (email, password) => {
     try {
       const response = await loginMember({ email, password });
-      const currentUser = await getCurrentUser();
+      persistSession(response.token, response.role, response.user || null);
+      const currentUser = response.user || (await getCurrentUser());
       persistSession(response.token, response.role, currentUser);
       return currentUser;
     } catch (error) {

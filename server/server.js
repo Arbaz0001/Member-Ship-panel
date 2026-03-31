@@ -14,10 +14,14 @@ const payment = require("./routes/payment");
 const admin = require("./routes/admin");
 const MembershipPrice = require("./models/MembershipPrice");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const { requestLogger } = require("./middleware/requestLogger");
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || "*" }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(requestLogger);
 
 const uploadBase = path.join(__dirname, "uploads");
 const profileDir = path.join(uploadBase, "profiles");
@@ -61,6 +65,10 @@ const cleanupMembershipPriceIndexes = async () => {
 const startServer = async () => {
 	await mongoose.connect(process.env.MONGO_URI);
 	console.log("MongoDB Connected");
+	console.log("Upload limits configured", {
+		expressBodyLimit: "10mb",
+		nginxClientMaxBodySize: "10M",
+	});
 	await cleanupMembershipPriceIndexes();
 	app.listen(port, () => console.log(`Server running on ${port}`));
 };

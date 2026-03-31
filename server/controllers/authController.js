@@ -12,17 +12,54 @@ const buildToken = (user) =>
 const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    console.log("[auth.login] Incoming login request", {
+      email: email?.toLowerCase() || "",
+    });
+
     const user = await User.findOne({ email: email?.toLowerCase() });
+    console.log("[auth.login] User lookup result", {
+      email: email?.toLowerCase() || "",
+      found: Boolean(user),
+    });
+
     if (!user) {
-      return res.status(400).json({ msg: "Invalid credentials" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(400).json({ msg: "Invalid credentials" });
+    console.log("[auth.login] Password comparison result", {
+      email: user.email,
+      matched: ok,
+    });
+
+    if (!ok) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
 
     const token = buildToken(user);
+    console.log("[auth.login] JWT generated", {
+      userId: String(user._id),
+      role: user.role,
+      tokenIssued: Boolean(token),
+    });
 
-    res.json({ token, role: user.role });
+    res.json({
+      success: true,
+      token,
+      role: user.role,
+      user: {
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (err) {
     next(err);
   }

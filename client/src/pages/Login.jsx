@@ -14,12 +14,22 @@ export default function Login() {
   const login = async () => {
     try {
       setError("");
-      await auth.loginUser(email, password);
+      const user = await auth.loginUser(email, password);
+      console.log("[frontend.login] User stored after login", {
+        token: localStorage.getItem("token"),
+        user: localStorage.getItem("user"),
+        role: localStorage.getItem("role"),
+      });
       toast.success("Signed in successfully.");
+      console.log("[frontend.login] Redirecting user", user);
       nav("/dashboard");
     } catch (err) {
       console.error("Login request failed:", err);
-      setError(err?.response?.data?.msg || "The provided credentials are invalid.");
+      setError(
+        err?.response?.data?.message ||
+        err?.response?.data?.msg ||
+        "The provided credentials are invalid."
+      );
     }
   };
 
