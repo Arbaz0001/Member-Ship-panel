@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const membershipPriceSchema = new mongoose.Schema(
   {
+    type: {
+      type: String,
+      enum: ["lifetime", "two-year"],
+      default: "two-year",
+      index: true,
+    },
     name: {
       type: String,
       required: true,

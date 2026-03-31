@@ -2,6 +2,7 @@
 import React from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import logo from "../assets/ssp.jpeg";
 
 const linkClass = ({ isActive }) =>
@@ -12,6 +13,7 @@ const linkClass = ({ isActive }) =>
 export default function MemberLayout({ title, children }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const auth = useAuth();
+  const toast = useToast();
   const nav = useNavigate();
   const location = useLocation();
 
@@ -47,6 +49,7 @@ export default function MemberLayout({ title, children }) {
 
   const logout = () => {
     auth.logout();
+    toast.success("You have been signed out successfully.");
     nav("/");
   };
 

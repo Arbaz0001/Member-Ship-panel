@@ -49,7 +49,8 @@ export default function AdminMembers() {
     try {
       setActioningId(id);
       await api.patch(`/admin/members/${id}/status`, { status: nextStatus });
-      toast.success(`Member ${nextStatus}.`);
+      const statusLabel = nextStatus === "approved" ? "Approved" : "Rejected";
+      toast.success(`Member status updated to ${statusLabel}.`);
       await load();
     } catch (err) {
       toast.error(err?.response?.data?.msg || "Unable to update member status.");
@@ -64,7 +65,7 @@ export default function AdminMembers() {
       setActioningId(confirmDeleteId);
       await api.delete(`/admin/members/${confirmDeleteId}`);
       setConfirmDeleteId("");
-      toast.success("Member deleted.");
+      toast.success("Member record deleted successfully.");
       await load();
     } catch (err) {
       toast.error(err?.response?.data?.msg || "Unable to delete member.");

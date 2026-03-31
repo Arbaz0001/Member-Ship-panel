@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import api from "../../api/client";
 import AdminLayout from "./AdminLayout";
 import Spinner from "../../components/Spinner";
@@ -12,7 +12,7 @@ const emptyMemberForm = {
   address: "",
   occupation: "",
   annualIncome: "",
-  membershipPriceId: "",
+  membershipType: "two-year",
   status: "approved",
   password: "",
 };
@@ -20,38 +20,17 @@ const emptyMemberForm = {
 export default function AdminMemberCreate() {
   const toast = useToast();
   const [newMember, setNewMember] = useState(emptyMemberForm);
-  const [membershipOptions, setMembershipOptions] = useState([]);
   const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    const loadMembershipOptions = async () => {
-      try {
-        const res = await api.get("/settings");
-        const options = res.data?.membershipOptions || [];
-        setMembershipOptions(options);
-        if (options.length) {
-          setNewMember((prev) => ({ ...prev, membershipPriceId: options[0]._id }));
-        }
-      } catch (err) {
-        console.error(err);
-        setMembershipOptions([]);
-      }
-    };
-    loadMembershipOptions();
-  }, []);
 
   const createMember = async (e) => {
     e.preventDefault();
     try {
       setCreating(true);
       await api.post("/admin/members", newMember);
-      toast.success("Member created successfully.");
-      setNewMember({
-        ...emptyMemberForm,
-        membershipPriceId: membershipOptions?.[0]?._id || "",
-      });
+      toast.success("Member record created successfully.");
+      setNewMember(emptyMemberForm);
     } catch (err) {
-      toast.error(err?.response?.data?.msg || "Unable to create member.");
+      toast.error(err?.response?.data?.msg || "We were unable to create the member record.");
     } finally {
       setCreating(false);
     }
@@ -109,15 +88,11 @@ export default function AdminMemberCreate() {
           />
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-            value={newMember.membershipPriceId}
-            onChange={(e) => setNewMember((prev) => ({ ...prev, membershipPriceId: e.target.value }))}
+            value={newMember.membershipType}
+            onChange={(e) => setNewMember((prev) => ({ ...prev, membershipType: e.target.value }))}
           >
-            <option value="">Select Plan</option>
-            {membershipOptions.map((item) => (
-              <option key={item._id} value={item._id}>
-                {item.name?.trim() || `Plan ${item.price}`} - {item.price}
-              </option>
-            ))}
+            <option value="two-year">Two Year</option>
+            <option value="lifetime">Lifetime</option>
           </select>
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"

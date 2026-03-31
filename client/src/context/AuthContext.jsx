@@ -1,8 +1,20 @@
 /* eslint-disable react/prop-types */
 import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
-import api from "../api/client";
+import { loginAdmin as loginAdminRequest, loginMember } from "../api/auth";
 
 const AuthContext = createContext(null);
+
+const parseJwtPayload = (token) => {
+  try {
+    const tokenPart = token?.split(".")?.[1];
+    if (!tokenPart) return null;
+    const base64 = tokenPart.replaceAll("-", "+").replaceAll("_", "/");
+    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    return JSON.parse(globalThis.atob(normalized));
+  } catch {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
@@ -13,34 +25,41 @@ export const AuthProvider = ({ children }) => {
     const storedToken = localStorage.getItem("token");
     const storedRole = localStorage.getItem("role");
     if (storedToken) {
+      const tokenRole = parseJwtPayload(storedToken)?.role;
+      const resolvedRole = storedRole || tokenRole || null;
       setToken(storedToken);
-      setRole(storedRole);
+      setRole(resolvedRole);
+      if (resolvedRole) {
+        localStorage.setItem("role", resolvedRole);
+      }
     }
     setLoading(false);
   }, []);
 
   const loginUser = async (email, password) => {
-    const res = await api.post("/auth/login", { email, password });
-    // Clear any previous tokens
-    localStorage.clear();
-    localStorage.setItem("token", res.data.token);
-    localStorage.setItem("role", res.data.role);
-    setToken(res.data.token);
-    setRole(res.data.role);
+    const res = await loginMember({ email, password });
+    res.data = res;
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.setItem("token", res.token);
+    localStorage.setItem("role", res.role);
+    setToken(res.token);
+    setRole(res.role);
     console.log("✅ User Login Success - Role:", res.data.role);
-    return res.data.role;
+    return res.role;
   };
 
   const loginAdmin = async (email, password) => {
-    const res = await api.post("/admin/login", { email, password });
-    // Clear old tokens completely before setting admin token
-    localStorage.clear();
-    localStorage.setItem("token", res.data.token);
-    localStorage.setItem("role", res.data.role);
-    setToken(res.data.token);
-    setRole(res.data.role);
+    const res = await loginAdminRequest({ email, password });
+    res.data = res;
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.setItem("token", res.token);
+    localStorage.setItem("role", res.role);
+    setToken(res.token);
+    setRole(res.role);
     console.log("✅ Admin Login Success - Role:", res.data.role);
-    return res.data.role;
+    return res.role;
   };
 
   const logout = () => {

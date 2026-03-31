@@ -6,7 +6,7 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState({
     totalMembers: 0,
     lifetimeMembers: 0,
-    oneTimeMembers: 0,
+    twoYearMembers: 0,
     pendingMembershipRequests: 0,
     pendingPaymentRequests: 0,
   });
@@ -32,8 +32,8 @@ export default function AdminDashboard() {
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{summary.lifetimeMembers}</h2>
         </div>
         <div className="bg-white p-4 sm:p-5 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs uppercase text-slate-500 mb-1">One Time Members</p>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{summary.oneTimeMembers}</h2>
+          <p className="text-xs uppercase text-slate-500 mb-1">Two Year Members</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{summary.twoYearMembers ?? summary.oneTimeMembers ?? 0}</h2>
         </div>
         <div className="bg-white p-4 sm:p-5 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs uppercase text-slate-500 mb-1">Pending Membership Requests</p>

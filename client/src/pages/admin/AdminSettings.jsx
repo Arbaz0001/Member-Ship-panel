@@ -70,7 +70,7 @@ export default function AdminSettings() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       await load();
-      toast.success("QR code uploaded and set active.");
+      toast.success("QR code uploaded successfully and set as active.");
     } catch (err) {
       toast.error(err?.response?.data?.msg || "Unable to upload QR code.");
     } finally {
@@ -96,7 +96,7 @@ export default function AdminSettings() {
         ifscCode: res.data?.ifscCode || "",
         upiId: res.data?.upiId || "",
       }));
-      toast.success("Payment details updated.");
+      toast.success("Payment details updated successfully.");
     } catch (err) {
       toast.error(err?.response?.data?.msg || "Unable to save payment details.");
     } finally {

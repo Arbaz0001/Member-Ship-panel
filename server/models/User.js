@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
     address: { type: String, required: true, trim: true },
     membershipType: {
       type: String,
-      enum: ["lifetime", "onetime"],
+      enum: ["lifetime", "two-year", "one-time", "onetime"],
       required: true,
     },
     membershipStatus: {

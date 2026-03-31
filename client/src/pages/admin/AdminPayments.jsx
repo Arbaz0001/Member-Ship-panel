@@ -34,9 +34,6 @@ export default function AdminPayments() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const role = localStorage.getItem("role");
-    console.log("AdminPayments loaded - Token:", !!token ? token.slice(0, 20) + "..." : null, "Role:", role);
     load();
   }, [status, page]);
 
@@ -44,7 +41,8 @@ export default function AdminPayments() {
     try {
       setActioningId(id);
       await api.patch(`/admin/payments/${id}/status`, { status: nextStatus });
-      toast.success(`Payment ${nextStatus}.`);
+      const statusLabel = nextStatus === "approved" ? "Approved" : "Rejected";
+      toast.success(`Payment request marked as ${statusLabel}.`);
       await load();
     } catch (err) {
       toast.error(err?.response?.data?.msg || "Unable to update payment.");

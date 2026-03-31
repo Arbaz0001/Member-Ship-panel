@@ -2,6 +2,7 @@
 import React from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import logo from "../../assets/ssp.jpeg";
 
 const linkClass = ({ isActive }) =>
@@ -11,6 +12,7 @@ const linkClass = ({ isActive }) =>
 
 export default function AdminLayout({ children }) {
   const auth = useAuth();
+  const toast = useToast();
   const nav = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -47,6 +49,7 @@ export default function AdminLayout({ children }) {
 
   const handleLogout = () => {
     auth.logout();
+    toast.success("You have been signed out successfully.");
     nav("/admin/login");
   };
 

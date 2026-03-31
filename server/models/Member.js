@@ -12,7 +12,7 @@ const memberSchema = new mongoose.Schema(
     annualIncome: { type: Number, required: true },
     membershipType: {
       type: String,
-      enum: ["lifetime", "one-time"],
+      enum: ["lifetime", "two-year", "one-time", "onetime"],
       required: true,
     },
     membershipPlanId: { type: String, trim: true },

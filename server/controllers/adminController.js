@@ -8,6 +8,11 @@ const AdminSettings = require("../models/AdminSettings");
 const User = require("../models/User");
 const Counter = require("../models/Counter");
 
+const FIXED_PRICE_TYPES = [
+  { type: "lifetime", name: "Lifetime" },
+  { type: "two-year", name: "Two Year" },
+];
+
 let membershipPriceIndexChecked = false;
 
 const ensureMembershipPriceIndexes = async (force = false) => {
@@ -58,13 +63,13 @@ const adminSummary = async (req, res, next) => {
     const [
       totalMembers,
       lifetimeMembers,
-      oneTimeMembers,
+      twoYearMembers,
       pendingMembershipRequests,
       pendingPaymentRequests,
     ] = await Promise.all([
       Member.countDocuments(),
       Member.countDocuments({ membershipType: "lifetime" }),
-      Member.countDocuments({ membershipType: { $in: ["one-time", "onetime"] } }),
+      Member.countDocuments({ membershipType: { $in: ["two-year", "one-time", "onetime"] } }),
       Member.countDocuments({ status: "pending" }),
       Payment.countDocuments({ status: "pending" }),
     ]);
@@ -72,7 +77,8 @@ const adminSummary = async (req, res, next) => {
     res.json({
       totalMembers,
       lifetimeMembers,
-      oneTimeMembers,
+      twoYearMembers,
+      oneTimeMembers: twoYearMembers,
       pendingMembershipRequests,
       pendingPaymentRequests,
     });
@@ -92,22 +98,72 @@ const getNextMemberId = async () => {
 };
 
 const normalizeType = (membershipType) => {
-  if (membershipType === "onetime") return "one-time";
-  return membershipType;
+  if (membershipType === "lifetime") return "lifetime";
+  if (membershipType === "two-year" || membershipType === "one-time" || membershipType === "onetime") {
+    return "two-year";
+  }
+  return "two-year";
 };
 
-const getMembershipPlan = async (membershipPriceId) => {
-  let priceDoc = null;
-  if (membershipPriceId) {
-    priceDoc = await MembershipPrice.findById(membershipPriceId);
+const inferTypeFromName = (name) => {
+  const normalized = String(name || "").trim().toLowerCase();
+  if (normalized.includes("life")) return "lifetime";
+  if (normalized.includes("two") || normalized.includes("year") || normalized.includes("one")) {
+    return "two-year";
   }
-  if (!priceDoc) {
-    priceDoc = await MembershipPrice.findOne().sort({ createdAt: -1 });
+  return "two-year";
+};
+
+const ensureFixedMembershipPrices = async () => {
+  await ensureMembershipPriceIndexes();
+
+  // Simple, deterministic approach: ensure exactly one doc per type
+  const docs = [];
+  
+  for (const fixed of FIXED_PRICE_TYPES) {
+    console.log(`[adminController:ensureFixedMembershipPrices] Processing type: ${fixed.type}`);
+    
+    // Find ALL docs with this type
+    const existingDocsByType = await MembershipPrice.find({ type: fixed.type }).sort({ updatedAt: -1, createdAt: -1 });
+    console.log(`[adminController:ensureFixedMembershipPrices] Found ${existingDocsByType.length} existing docs for ${fixed.type}`);
+    
+    let doc;
+    if (existingDocsByType.length === 0) {
+      // Create new if none exists
+      doc = await MembershipPrice.create({
+        type: fixed.type,
+        name: fixed.name,
+        price: 0,
+      });
+      console.log(`[adminController:ensureFixedMembershipPrices] Created new ${fixed.type} doc:`, doc._id);
+    } else {
+      // Use the latest one
+      doc = existingDocsByType[0];
+      console.log(`[adminController:ensureFixedMembershipPrices] Using existing ${fixed.type} doc:`, doc._id, "price:", doc.price);
+      
+      // Remove duplicates if any
+      if (existingDocsByType.length > 1) {
+        const duplicateIds = existingDocsByType.slice(1).map(d => d._id);
+        await MembershipPrice.deleteMany({ _id: { $in: duplicateIds } });
+        console.log(`[adminController:ensureFixedMembershipPrices] Deleted ${duplicateIds.length} duplicate docs for ${fixed.type}`);
+      }
+    }
+    
+    docs.push(doc);
   }
+
+  console.log(`[adminController:ensureFixedMembershipPrices] Returning ${docs.length} docs: lifetime=${docs[0]?._id}, two-year=${docs[1]?._id}`);
+  return docs;
+};
+
+const getMembershipPlan = async (membershipType) => {
+  await ensureFixedMembershipPrices();
+  const normalizedType = normalizeType(membershipType);
+  const priceDoc = await MembershipPrice.findOne({ type: normalizedType });
 
   return {
     fee: Number(priceDoc?.price || 0),
-    planName: priceDoc?.name || "Membership Plan",
+    planName: normalizedType === "lifetime" ? "Lifetime" : "Two Year",
     planId: priceDoc?._id ? String(priceDoc._id) : undefined,
   };
 };
@@ -119,7 +175,11 @@ const listAdminMembers = async (req, res, next) => {
 
     if (status) query.status = status;
     if (type) {
-      query.membershipType = type === "onetime" ? { $in: ["one-time", "onetime"] } : type;
+      if (type === "two-year" || type === "one-time" || type === "onetime") {
+        query.membershipType = { $in: ["two-year", "one-time", "onetime"] };
+      } else {
+        query.membershipType = type;
+      }
     }
     if (q) {
       query.$or = [
@@ -180,7 +240,7 @@ const createAdminMember = async (req, res, next) => {
       address,
       occupation,
       annualIncome,
-      membershipPriceId,
+      membershipType,
       password,
       status,
     } = req.body;
@@ -189,8 +249,8 @@ const createAdminMember = async (req, res, next) => {
     if (existing) return res.status(400).json({ msg: "User already exists with this email" });
 
     const memberId = await getNextMemberId();
-    const normalizedType = "one-time";
-    const selectedPlan = await getMembershipPlan(membershipPriceId);
+    const normalizedType = normalizeType(membershipType);
+    const selectedPlan = await getMembershipPlan(normalizedType);
 
     const user = await User.create({
       name: fullName,
@@ -198,7 +258,7 @@ const createAdminMember = async (req, res, next) => {
       phone: mobile,
       password: password || mobile,
       address,
-      membershipType: "onetime",
+      membershipType: normalizedType,
       membershipStatus: status || "approved",
       role: "member",
     });
@@ -228,12 +288,15 @@ const createAdminMember = async (req, res, next) => {
 const updateAdminMember = async (req, res, next) => {
   try {
     const updates = { ...req.body };
-    if (updates.membershipPriceId) {
-      const selectedPlan = await getMembershipPlan(updates.membershipPriceId);
+    if (updates.membershipType) {
+      updates.membershipType = normalizeType(updates.membershipType);
+    }
+
+    if (updates.membershipType) {
+      const selectedPlan = await getMembershipPlan(updates.membershipType);
       updates.membershipFee = selectedPlan.fee;
       updates.membershipPlanName = selectedPlan.planName;
       updates.membershipPlanId = selectedPlan.planId;
-      updates.membershipType = "one-time";
     }
 
     const member = await Member.findByIdAndUpdate(req.params.id, updates, { new: true });
@@ -245,7 +308,7 @@ const updateAdminMember = async (req, res, next) => {
         name: member.fullName,
         phone: member.mobile,
         address: member.address,
-        membershipType: member.membershipType === "one-time" ? "onetime" : member.membershipType,
+        membershipType: member.membershipType === "lifetime" ? "lifetime" : "two-year",
         membershipStatus: member.status,
       }
     );
@@ -319,15 +382,22 @@ const updatePaymentStatus = async (req, res, next) => {
 
 const listMembershipPrices = async (req, res, next) => {
   try {
-    await ensureMembershipPriceIndexes();
-    const prices = await MembershipPrice.find().sort({ createdAt: -1 });
-    const normalized = prices.map((item) => {
-      const value = item.toObject();
-      return {
-        ...value,
-        name: value.name?.trim() || `Plan ${value.price || 0}`,
-      };
+    const prices = await ensureFixedMembershipPrices();
+    console.log("[listMembershipPrices] Returned", prices.length, "prices");
+    prices.forEach((p, i) => {
+      console.log(`  [${i}] type=${p.type}, price=${p.price}, id=${p._id}`);
     });
+    
+    const normalized = prices
+      .map((item) => ({
+        ...item.toObject(),
+        name: item.type === "lifetime" ? "Lifetime" : "Two Year",
+      }))
+      .sort((a, b) => {
+        const aOrder = a.type === "lifetime" ? 0 : 1;
+        const bOrder = b.type === "lifetime" ? 0 : 1;
+        return aOrder - bOrder;
+      });
     res.json(normalized);
   } catch (err) {
     next(err);
@@ -335,56 +405,27 @@ const listMembershipPrices = async (req, res, next) => {
 };
 
 const createMembershipPrice = async (req, res, next) => {
-  const normalizedName = String(req.body?.name || "").trim();
-  const parsedPrice = Number(req.body?.price);
-
-  if (!normalizedName) {
-    return res.status(400).json({ msg: "Plan name is required" });
-  }
-
-  const createDoc = () =>
-    MembershipPrice.create({
-      name: normalizedName,
-      price: parsedPrice,
-    });
-
   try {
-    await ensureMembershipPriceIndexes(true);
-    const doc = await createDoc();
-    res.status(201).json(doc);
+    await ensureFixedMembershipPrices();
+    return res.status(405).json({ msg: "Only Lifetime and Two Year prices are allowed. Edit existing prices." });
   } catch (err) {
-    if (err?.code === 11000) {
-      await ensureMembershipPriceIndexes(true);
-      try {
-        const retryDoc = await createDoc();
-        return res.status(201).json(retryDoc);
-      } catch (error_) {
-        if (error_?.code === 11000) {
-          return res.status(409).json({
-            msg: "Duplicate unique index conflict in DB. Restart server once and try again.",
-          });
-        }
-        return next(error_);
-      }
-    }
     return next(err);
   }
 };
 
 const updateMembershipPrice = async (req, res, next) => {
   try {
-    await ensureMembershipPriceIndexes();
-    const { name, price } = req.body;
-    const updates = {};
-    if (name !== undefined) updates.name = String(name).trim();
-    if (price === undefined) {
-      // no-op
-    } else {
-      updates.price = Number(price);
+    await ensureFixedMembershipPrices();
+    const { price } = req.body;
+    const existingDoc = await MembershipPrice.findById(req.params.id);
+    if (!existingDoc) return res.status(404).json({ msg: "Price not found" });
+    if (!["lifetime", "two-year"].includes(existingDoc.type)) {
+      return res.status(400).json({ msg: "Only Lifetime and Two Year prices can be edited." });
     }
+
     const doc = await MembershipPrice.findByIdAndUpdate(
       req.params.id,
-      updates,
+      { price: Number(price || 0) },
       { new: true }
     );
     if (!doc) return res.status(404).json({ msg: "Price not found" });
@@ -396,9 +437,8 @@ const updateMembershipPrice = async (req, res, next) => {
 
 const deleteMembershipPrice = async (req, res, next) => {
   try {
-    const doc = await MembershipPrice.findByIdAndDelete(req.params.id);
-    if (!doc) return res.status(404).json({ msg: "Price not found" });
-    res.json({ message: "Price deleted" });
+    await ensureFixedMembershipPrices();
+    return res.status(405).json({ msg: "Delete is not allowed. Only price edit is permitted." });
   } catch (err) {
     next(err);
   }

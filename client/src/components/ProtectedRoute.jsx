@@ -3,10 +3,20 @@ import React, { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const parseJwtPayload = (token) => {
+  const tokenPart = token?.split(".")?.[1];
+  if (!tokenPart) return null;
+
+  const base64 = tokenPart.replaceAll("-", "+").replaceAll("_", "/");
+  const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const payload = globalThis.atob(normalized);
+  return JSON.parse(payload);
+};
+
 const isTokenExpired = (token) => {
   if (!token) return true;
   try {
-    const payload = JSON.parse(globalThis.atob(token.split(".")[1]));
+    const payload = parseJwtPayload(token);
     if (!payload?.exp) return false;
     return payload.exp * 1000 <= Date.now();
   } catch {

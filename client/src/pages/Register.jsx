@@ -81,7 +81,7 @@ export default function Register() {
       const res = await api.post("/members/apply", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setMessage(res.data.message || "Submitted successfully");
+      setMessage(res.data.message || "Your membership application has been submitted successfully.");
       setForm({
         fullName: "",
         fatherName: "",
@@ -95,7 +95,7 @@ export default function Register() {
       });
       setProfileImage(null);
     } catch (err) {
-      setError(err?.response?.data?.message || "Submission failed. Please check the form.");
+      setError(err?.response?.data?.message || "We were unable to submit your application. Please review the form and try again.");
     }
   };
 

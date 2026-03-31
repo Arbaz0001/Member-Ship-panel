@@ -13,7 +13,7 @@ const emptyEditForm = {
   address: "",
   occupation: "",
   annualIncome: "",
-  membershipPriceId: "",
+  membershipType: "two-year",
   status: "pending",
 };
 
@@ -23,7 +23,6 @@ export default function AdminMemberEdit() {
   const toast = useToast();
 
   const [edit, setEdit] = useState(emptyEditForm);
-  const [membershipOptions, setMembershipOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -31,14 +30,9 @@ export default function AdminMemberEdit() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [memberRes, settingsRes] = await Promise.all([
-          api.get(`/admin/members/${id}`),
-          api.get("/settings"),
-        ]);
+        const memberRes = await api.get(`/admin/members/${id}`);
 
         const member = memberRes.data;
-        const options = settingsRes.data?.membershipOptions || [];
-        setMembershipOptions(options);
 
         setEdit({
           fullName: member.fullName || "",
@@ -48,7 +42,7 @@ export default function AdminMemberEdit() {
           address: member.address || "",
           occupation: member.occupation || "",
           annualIncome: member.annualIncome || "",
-          membershipPriceId: member.membershipPlanId || options?.[0]?._id || "",
+          membershipType: member.membershipType === "lifetime" ? "lifetime" : "two-year",
           status: member.status || "pending",
         });
       } catch (err) {
@@ -66,10 +60,10 @@ export default function AdminMemberEdit() {
     try {
       setSaving(true);
       await api.put(`/admin/members/${id}`, edit);
-      toast.success("Member updated.");
+      toast.success("Member record updated successfully.");
       nav("/admin/members");
     } catch (err) {
-      toast.error(err?.response?.data?.msg || "Unable to update member.");
+      toast.error(err?.response?.data?.msg || "We were unable to update the member record.");
     } finally {
       setSaving(false);
     }
@@ -131,15 +125,11 @@ export default function AdminMemberEdit() {
             />
             <select
               className="border border-slate-300 p-2 rounded"
-              value={edit.membershipPriceId}
-              onChange={(e) => setEdit({ ...edit, membershipPriceId: e.target.value })}
+              value={edit.membershipType}
+              onChange={(e) => setEdit({ ...edit, membershipType: e.target.value })}
             >
-              <option value="">Select Plan</option>
-              {membershipOptions.map((item) => (
-                <option key={item._id} value={item._id}>
-                  {item.name?.trim() || `Plan ${item.price}`} - {item.price}
-                </option>
-              ))}
+              <option value="two-year">Two Year</option>
+              <option value="lifetime">Lifetime</option>
             </select>
             <select
               className="border border-slate-300 p-2 rounded"

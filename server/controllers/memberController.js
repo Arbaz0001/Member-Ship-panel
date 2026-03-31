@@ -5,6 +5,11 @@ const Member = require("../models/Member");
 const MembershipPrice = require("../models/MembershipPrice");
 const User = require("../models/User");
 
+const FIXED_PRICE_TYPES = [
+  { type: "lifetime", name: "Lifetime" },
+  { type: "two-year", name: "Two Year" },
+];
+
 const getNextMemberId = async () => {
   const counter = await Counter.findOneAndUpdate(
     { name: "member" },
@@ -13,6 +18,81 @@ const getNextMemberId = async () => {
   );
   const year = new Date().getFullYear();
   return `MBR-${year}-${String(counter.seq).padStart(5, "0")}`;
+};
+
+const normalizeMembershipType = (membershipType) => {
+  if (membershipType === "lifetime") return "lifetime";
+  return "two-year";
+};
+
+const inferTypeFromName = (name) => {
+  const normalized = String(name || "").trim().toLowerCase();
+  if (normalized.includes("life")) return "lifetime";
+  if (normalized.includes("two") || normalized.includes("year") || normalized.includes("one")) {
+    return "two-year";
+  }
+  return "two-year";
+};
+
+const ensureFixedMembershipPrices = async () => {
+  const allPrices = await MembershipPrice.find().sort({ createdAt: -1 });
+  const explicitByType = new Map();
+  const inferredByType = new Map();
+
+  for (const item of allPrices) {
+    if (item.type && !explicitByType.has(item.type)) {
+      explicitByType.set(item.type, item);
+      continue;
+    }
+
+    const inferredType = inferTypeFromName(item.name);
+    if (!inferredByType.has(inferredType)) {
+      inferredByType.set(inferredType, item);
+    }
+  }
+
+  const docs = [];
+  for (const fixed of FIXED_PRICE_TYPES) {
+    const matched = explicitByType.get(fixed.type) || inferredByType.get(fixed.type);
+    const price = Number(matched?.price || 0);
+
+    const sameTypeDocs = await MembershipPrice.find({ type: fixed.type }).sort({ updatedAt: -1, createdAt: -1 });
+    let doc = sameTypeDocs[0] || null;
+    if (!doc) {
+      doc = await MembershipPrice.create({
+        type: fixed.type,
+        name: fixed.name,
+        price,
+      });
+    } else {
+      doc = await MembershipPrice.findByIdAndUpdate(
+        doc._id,
+        { type: fixed.type, name: fixed.name, price },
+        { new: true }
+      );
+
+      const duplicateIds = sameTypeDocs.slice(1).map((item) => item._id);
+      if (duplicateIds.length) {
+        await MembershipPrice.deleteMany({ _id: { $in: duplicateIds } });
+      }
+    }
+
+    docs.push(doc);
+  }
+
+  return docs;
+};
+
+const getMembershipPlanByType = async (membershipType) => {
+  await ensureFixedMembershipPrices();
+  const normalizedType = normalizeMembershipType(membershipType);
+  const priceDoc = await MembershipPrice.findOne({ type: normalizedType }).sort({ updatedAt: -1, createdAt: -1 });
+
+  return {
+    fee: Number(priceDoc?.price || 0),
+    planName: normalizedType === "lifetime" ? "Lifetime" : "Two Year",
+    planId: priceDoc?._id ? String(priceDoc._id) : undefined,
+  };
 };
 
 const applyMembership = async (req, res, next) => {
@@ -25,21 +105,11 @@ const applyMembership = async (req, res, next) => {
       address,
       occupation,
       annualIncome,
-      membershipPriceId,
+      membershipType,
     } = req.body;
 
-    let selectedPrice = null;
-    if (membershipPriceId) {
-      selectedPrice = await MembershipPrice.findById(membershipPriceId);
-    }
-
-    if (!selectedPrice) {
-      selectedPrice = await MembershipPrice.findOne().sort({ createdAt: -1 });
-    }
-
-    const normalizedType = "one-time";
-    const membershipFee = Number(selectedPrice?.price || 0);
-    const membershipPlanName = selectedPrice?.name || "Membership Plan";
+    const normalizedType = normalizeMembershipType(membershipType);
+    const selectedPlan = await getMembershipPlanByType(normalizedType);
 
     const memberId = await getNextMemberId();
 
@@ -53,9 +123,9 @@ const applyMembership = async (req, res, next) => {
       occupation,
       annualIncome,
       membershipType: normalizedType,
-      membershipPlanId: selectedPrice?._id ? String(selectedPrice._id) : undefined,
-      membershipPlanName,
-      membershipFee,
+      membershipPlanId: selectedPlan.planId,
+      membershipPlanName: selectedPlan.planName,
+      membershipFee: selectedPlan.fee,
       profileImage: req.file ? `/uploads/profiles/${req.file.filename}` : undefined,
       status: "pending",
     });
@@ -68,7 +138,7 @@ const applyMembership = async (req, res, next) => {
         phone: mobile,
         password: mobile,
         address,
-        membershipType: "onetime",
+        membershipType: normalizedType === "lifetime" ? "lifetime" : "two-year",
         membershipStatus: "pending",
         role: "member",
       });
@@ -111,8 +181,15 @@ const listMembers = async (req, res, next) => {
 
 const listPublicMembers = async (req, res, next) => {
   try {
-    const { q, page = 1, limit = 10 } = req.query;
+    const { q, type, page = 1, limit = 10 } = req.query;
     const query = { status: "approved" };
+    if (type) {
+      if (type === "two-year" || type === "one-time" || type === "onetime") {
+        query.membershipType = { $in: ["two-year", "one-time", "onetime"] };
+      } else {
+        query.membershipType = type;
+      }
+    }
     if (q) {
       query.$or = [
         { fullName: new RegExp(q, "i") },
@@ -180,12 +257,12 @@ const stats = async (req, res, next) => {
       status: "approved",
       membershipType: "lifetime",
     });
-    const oneTimeMembers = await Member.countDocuments({
+    const twoYearMembers = await Member.countDocuments({
       status: "approved",
-      membershipType: "one-time",
+      membershipType: { $in: ["two-year", "one-time", "onetime"] },
     });
 
-    res.json({ totalMembers, lifetimeMembers, oneTimeMembers });
+    res.json({ totalMembers, lifetimeMembers, twoYearMembers, oneTimeMembers: twoYearMembers });
   } catch (err) {
     next(err);
   }

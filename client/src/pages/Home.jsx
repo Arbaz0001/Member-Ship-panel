@@ -8,10 +8,56 @@ import logo from "../assets/ssp.jpeg";
 
 const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+const renderMembersContent = (membersLoading, membersError, publicMembers) => {
+  if (membersLoading) {
+    return (
+      <div className="py-6 flex justify-center">
+        <Spinner size="md" className="border-blue-900 border-r-transparent" />
+      </div>
+    );
+  }
+
+  if (membersError) {
+    return <p className="text-sm text-red-600">{membersError}</p>;
+  }
+
+  if (!publicMembers.length) {
+    return <p className="text-sm text-slate-500">No members found in this category.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[520px] text-sm">
+        <thead>
+          <tr className="text-left text-slate-500 border-b border-slate-200">
+            <th className="py-2 pr-3 font-medium">Member ID</th>
+            <th className="py-2 pr-3 font-medium">Name</th>
+            <th className="py-2 pr-3 font-medium">Mobile</th>
+            <th className="py-2 pr-3 font-medium">Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          {publicMembers.map((member) => (
+            <tr key={member._id} className="border-b border-slate-100 text-slate-700">
+              <td className="py-2 pr-3">{member.memberId || "-"}</td>
+              <td className="py-2 pr-3">{member.fullName || "-"}</td>
+              <td className="py-2 pr-3">{member.mobile || "-"}</td>
+              <td className="py-2 pr-3 capitalize">
+                {member.membershipType === "lifetime" ? "Lifetime" : "Two Year"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export default function Home() {
   const toast = useToast();
   const auth = useAuth();
   const nav = useNavigate();
+  const [activeCategory, setActiveCategory] = useState("");
   const [form, setForm] = useState({
     fullName: "",
     fatherName: "",
@@ -20,15 +66,14 @@ export default function Home() {
     address: "",
     occupation: "",
     annualIncome: "",
-    membershipType: "one-time",
-    membershipPriceId: "",
+    membershipType: "two-year",
   });
   const [profileImage, setProfileImage] = useState(null);
   const [settings, setSettings] = useState({
     lifetimePrice: 0,
+    twoYearPrice: 0,
     oneTimePrice: 0,
     paymentQrImage: "",
-    membershipOptions: [],
     bankName: "",
     accountHolderName: "",
     accountNumber: "",
@@ -36,39 +81,59 @@ export default function Home() {
     upiId: "",
   });
   const [loading, setLoading] = useState(false);
-
-  const selectedMembershipOption = useMemo(
-    () => settings.membershipOptions?.find((item) => item._id === form.membershipPriceId),
-    [settings.membershipOptions, form.membershipPriceId]
-  );
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState("");
+  const [publicMembers, setPublicMembers] = useState([]);
 
   const membershipFee = useMemo(() => {
-    if (selectedMembershipOption) return Number(selectedMembershipOption.price || 0);
-    return settings.oneTimePrice || settings.lifetimePrice;
-  }, [selectedMembershipOption, form.membershipType, settings]);
+    if (form.membershipType === "lifetime") return Number(settings.lifetimePrice || 0);
+    return Number(settings.twoYearPrice || settings.oneTimePrice || 0);
+  }, [form.membershipType, settings]);
 
   useEffect(() => {
     const loadSettings = async () => {
       const res = await api.get("/settings");
       const nextSettings = res.data || {
         lifetimePrice: 0,
+        twoYearPrice: 0,
         oneTimePrice: 0,
         paymentQrImage: "",
-        membershipOptions: [],
       };
       setSettings(nextSettings);
-
-      if (nextSettings.membershipOptions?.length) {
-        const firstOption = nextSettings.membershipOptions[0];
-        setForm((prev) => ({
-          ...prev,
-          membershipPriceId: firstOption._id,
-          membershipType: "one-time",
-        }));
-      }
     };
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (!activeCategory) {
+      setPublicMembers([]);
+      setMembersError("");
+      setMembersLoading(false);
+      return;
+    }
+
+    const loadMembers = async () => {
+      try {
+        setMembersLoading(true);
+        setMembersError("");
+        const res = await api.get("/members/public", {
+          params: {
+            type: activeCategory,
+            page: 1,
+            limit: 100,
+          },
+        });
+        setPublicMembers(res.data?.items || []);
+      } catch (err) {
+        setMembersError(err?.response?.data?.msg || "Unable to load members.");
+        setPublicMembers([]);
+      } finally {
+        setMembersLoading(false);
+      }
+    };
+
+    loadMembers();
+  }, [activeCategory]);
 
   const updateField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -80,10 +145,7 @@ export default function Home() {
       setLoading(true);
 
       const data = new FormData();
-      const payload = {
-        ...form,
-        membershipType: "one-time",
-      };
+      const payload = { ...form };
 
       Object.entries(payload).forEach(([key, value]) => data.append(key, value));
       if (profileImage) data.append("profileImage", profileImage);
@@ -93,14 +155,28 @@ export default function Home() {
       });
 
       await auth.loginUser(form.email, form.mobile);
-      toast.success("Membership submitted and logged in successfully.");
+      toast.success("Your membership application has been submitted successfully, and you are now signed in.");
       nav("/member/dashboard");
     } catch (err) {
-      toast.error(err?.response?.data?.msg || err?.response?.data?.message || "Unable to submit membership form.");
+      toast.error(err?.response?.data?.msg || err?.response?.data?.message || "We were unable to submit the membership form. Please review the details and try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const getCategoryButtonClass = (category) => {
+    const isActive = activeCategory === category;
+    if (isActive) {
+      return "px-4 py-2 rounded text-sm border transition bg-blue-900 text-white border-blue-900";
+    }
+    return "px-4 py-2 rounded text-sm border transition bg-white text-slate-700 border-slate-300 hover:bg-slate-50";
+  };
+
+  const selectCategory = (category) => {
+    setActiveCategory((prev) => (prev === category ? "" : category));
+  };
+
+  const membersContent = renderMembersContent(membersLoading, membersError, publicMembers);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -120,11 +196,40 @@ export default function Home() {
             <Link to="/admin/login" className="px-4 py-2 rounded border border-slate-300 text-sm text-center">
               Admin Login
             </Link>
+            <button
+              type="button"
+              onClick={() => selectCategory("lifetime")}
+              className={getCategoryButtonClass("lifetime")}
+            >
+              Lifetime Members
+            </button>
+            <button
+              type="button"
+              onClick={() => selectCategory("two-year")}
+              className={getCategoryButtonClass("two-year")}
+            >
+              Two Year Members
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 grid lg:grid-cols-[2fr_1fr] gap-6">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        {activeCategory && (
+          <section className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="font-semibold text-blue-950">
+                {activeCategory === "lifetime" ? "Lifetime Members" : "Two Year Members"}
+              </h2>
+              <span className="text-xs text-slate-500">Total: {publicMembers.length}</span>
+            </div>
+
+            {membersContent}
+          </section>
+        )}
+
+        {!activeCategory && (
+          <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
         <form onSubmit={submitMembership} className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="font-semibold text-blue-950 mb-4">Apply Membership</h2>
 
@@ -137,25 +242,11 @@ export default function Home() {
             <input type="number" className="border border-slate-300 p-2 rounded" placeholder="Annual Income" value={form.annualIncome} onChange={(e) => updateField("annualIncome", e.target.value)} required />
             <select
               className="border border-slate-300 p-2 rounded"
-              value={form.membershipPriceId}
-              onChange={(e) => {
-                const value = e.target.value;
-                setForm((prev) => ({
-                  ...prev,
-                  membershipPriceId: value,
-                  membershipType: "one-time",
-                }));
-              }}
+              value={form.membershipType}
+              onChange={(e) => updateField("membershipType", e.target.value)}
             >
-              {settings.membershipOptions?.length ? (
-                settings.membershipOptions.map((item) => (
-                  <option key={item._id} value={item._id}>
-                    {item.name?.trim() || `Plan ${item.price}`} - {item.price}
-                  </option>
-                ))
-              ) : (
-                <option value="">No plan configured</option>
-              )}
+              <option value="lifetime">Lifetime</option>
+              <option value="two-year">Two Year</option>
             </select>
             <input className="border border-slate-300 p-2 rounded bg-slate-50" value={`Membership Fee: ${membershipFee}`} readOnly />
           </div>
@@ -190,6 +281,8 @@ export default function Home() {
             <p><span className="font-medium text-slate-900">UPI ID:</span> {settings.upiId || "-"}</p>
           </div>
         </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -1,21 +1,24 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const auth = useAuth();
+  const toast = useToast();
   const nav = useNavigate();
 
   const login = async () => {
     try {
       setError("");
       await auth.loginAdmin(email, password);
+      toast.success("Administrator signed in successfully.");
       nav("/admin/dashboard");
     } catch (err) {
-      setError(err?.response?.data?.msg || "Invalid admin credentials");
+      setError(err?.response?.data?.msg || "The provided administrator credentials are invalid.");
     }
   };
 
